@@ -16,15 +16,15 @@ class CorruptedDataException extends Exception {
 class GraphicPencilSTM32 extends JPanel {
 
     private Color c;
-    private int x, y, xi, yi, sizeX, sizeY, zi;
+    private int x, y, xi, yi, zi, sizeX, sizeY; //x и у - абсолютные координаты точки; xi, yi и zi - показания акселерометра; sizeX, sizeY - размер окна
     private SerialPort serialPort = null;
-    private String data;
-    private boolean dataError = false, isXZero = false, isYZero = false;
+    private String data; //Считываемая строка
+    private boolean dataError = false, isXZero = false, isYZero = false; //dataError - флаг ошибки чтения строки; isXZero, isYZero - проверка на нулевые координаты
 
     GraphicPencilSTM32(int sizeX, int sizeY) {
         this.sizeX = sizeX;
         this.sizeY = sizeY;
-        x = sizeX / 2;
+        x = sizeX / 2; //По умолчанию - точка находится в центре экрана
         y = sizeY / 2;
         c = Color.getHSBColor((float)Math.random() * 255, (float)Math.random() * 255, (float)Math.random() * 255);
     }
@@ -35,15 +35,15 @@ class GraphicPencilSTM32 extends JPanel {
 
         g.setColor(c);
 
-        //Если x, y находятся на границах, то мы не отрисовываем дополнительные точки
+        //По флагу определяем - если точка (x, y) находятся на нулевой границе экрана, то не отрисовываем дополнительные точки
         xi = (isXZero) ? 0 : xi;
         yi = (isYZero) ? 0 : yi;
 
-        //Если x, y упали на границу экрана, то ставим специальный флаг (подсчет идет только во второй раз)
+        //Если точка (x, y) находятся на нулевой границе экрана, то ставим специальный флаг
         isXZero = (x == 0 || x == sizeX);
         isYZero = (y == 0 || y == sizeY);
 
-        //Рисуется n точек (по максимальному расстоянию между двумя точками), чтобы убрать пробелы между двумя точками
+        //Помимо основной точки, рисуется n дополнительных точек (по максимальному расстоянию между двумя точками), чтобы убрать пробелы между двумя точками
         int max = Math.max(Math.abs(xi), Math.abs(yi));
         g.fillOval(x, y, 10, 10);
         for (int i = 1; i <= max; i++) {
@@ -53,22 +53,23 @@ class GraphicPencilSTM32 extends JPanel {
 
     private void findAndSetPort(SerialPortEventListener event) {
         try {
-            String[] list = SerialPortList.getPortNames(); //Находим порты
+            //Находим список COM-портов
+            String[] list = SerialPortList.getPortNames();
 
-            //Подключаем устройство по порту
+            //Из списка находим нужный порт, подключаем устройство
             for (String port : list) {
-                System.out.println(port);
                 serialPort = new SerialPort(port);
                 serialPort.openPort();
                 serialPort.setParams(115200, 8, 1, 0, true, true);
                 serialPort.setEventsMask(SerialPort.MASK_RXCHAR + SerialPort.MASK_CTS + SerialPort.MASK_DSR);
                 if (serialPort.readBytes() != null) { //Если нашли нужный - закрываем цикл
+                    System.out.println(port); //Выводим используемый порт
                     break;
                 }
                 serialPort.closePort();  //Иначе закрываем порт
             }
 
-            //Считываем данные через eventListener
+            //Начинаем считывать данные через eventListener
             serialPort.addEventListener(event);
 
         } catch (SerialPortException exc) {
@@ -92,7 +93,6 @@ class GraphicPencilSTM32 extends JPanel {
                 if (event.isRXCHAR()) {
                     try {
                         data = serialPort.readString(28); //Читаем строку
-                        //System.out.print("Строка: " + data);
 
                         //Задержка в 0.01 секунду
                         try {
@@ -101,24 +101,25 @@ class GraphicPencilSTM32 extends JPanel {
                             System.out.println(exc.toString());
                         }
 
-                        //Выбираем нормальную, полную строку
+                        //Проверяем строку на соответствие с шаблоном (пример шаблона: "X:00142 Y:-000243 Z:000041")
                         if (data.matches("X:-?\\d{5,6}\\sY:-?\\d{5,6}\\s*Z:-?\\d{5,6}\\s*")) {
+                            //Разбиваем строку на подстроки c x, y, z
                             String[] cords = data.split("\\s");
 
-                            //Получаем изменение положения из строки (x и y - оси изменены местами, у числа убирается разряд единиц).
+                            //Получаем показания акселерометра из строки. Здесь оси X и Y изменены местами, а полученные числа делится на 10 (убирается разряд единиц)
                             xi = Integer.parseInt(cords[1].substring(2, cords[1].length() - 1));
                             yi = Integer.parseInt(cords[0].substring(2, cords[0].length() - 1));
                             zi = Integer.parseInt(cords[2].substring(2, cords[2].length() - 1));
 
-                            //Смещаем x, y по полученным числам, если x, y меньше нуля - приравнять к нулю, если больше размера экрана - приравнять к размеру экрана
+                            //Смещаем точку (x, y) по показаниям
                             x -= xi;
-                            x = Math.max(0, x);
+                            x = Math.max(0, x); //Устанавливаем границу экрана, чтобы координаты точки не уходили ниже нуля или больше размера экрана
                             x = Math.min(sizeX, x);
                             y -= yi;
                             y = Math.max(0, y);
                             y = Math.min(sizeY, y);
 
-                            //Для z - меняем цвет
+                            //Для координаты z - меняем цвет
                             if (Math.abs(zi) > 50) {
                                 c = Color.getHSBColor((float)Math.random() * 255, (float)Math.random() * 255, (float)Math.random() * 255);
                             }
@@ -126,12 +127,12 @@ class GraphicPencilSTM32 extends JPanel {
                             //System.out.println("Координаты точки: x = " + x + " y = " + y);
                             repaint(); //Рисуем (метод paintComponent())
                             dataError = false;
-                        } else { //Попытка восстановить правильность строки, прочитав n байт до '\n'
+                        } else { //В случае неправильно прочитанной строки пытаемся восстановить её, прочитав n байт до символа '\n'
                             int index = data.indexOf("\n");
                             if (index >= 0) {
                                 data = serialPort.readString(data.indexOf("\n") + 1);
                             }
-                            dataError = true; //Служит в качестве счетчика ошибочных строк. Если они повторяются множество раз - цикл необходимо прекратить
+                            dataError = true; //Флаг служит в качестве счетчика ошибочных строк. Если они повторяются множество раз - цикл необходимо прекратить
                         }
                     } catch (SerialPortException | ArrayIndexOutOfBoundsException | PatternSyntaxException exc) {
                         System.out.println(exc.toString());
@@ -142,18 +143,18 @@ class GraphicPencilSTM32 extends JPanel {
             //Связываемся с портом, открываем его и передаем фрейм и лямбда-выражение
             findAndSetPort(eventListener);
 
-            //Проверяем, удалось ли реализовать соединение (Если объект равен null - генерируем исключение)
+            //Проверяем, удалось ли реализовать соединение (если объект равен null - генерируем исключение)
             if (serialPort == null) {
                 throw new NullPointerException();
             }
 
-            //Цикл проверки - работает ли порт и не выдает ли неправильные координаты
-            int count = 0;
-            while((serialPort.getLinesStatus())[0] != 0) { //Пока устройство не отключено от питания
+            //Цикл проверки - доступно ли соединение и правильно ли считываются строки
+            int count = 0; //Счетчик ошибок
+            while((serialPort.getLinesStatus())[0] != 0) { //Цикл работает, пока устройство не отключено от питания
 
                 if (dataError) { //Если данные считываются неправильно
-                    count++;
-                    if (count > 500) { //В случае 500 ошибок (около 5 секунд), идущих подряд - выбрасывается исключение
+                    count++; //То добавляем +1 к счетчику ошибок
+                    if (count > 500) { //В случае 500 ошибок, идущих подряд - выбрасывается исключение
                         throw new CorruptedDataException();
                     }
                 } else {
