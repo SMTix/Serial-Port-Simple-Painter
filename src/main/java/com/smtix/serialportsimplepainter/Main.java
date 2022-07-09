@@ -188,7 +188,6 @@ class GraphicPencilSTM32 extends JPanel {
 public class Main {
     public static void main(String[] args) {
 
-        //Ошибка с пакетом SLF4J решена!
         int width, height;
 
         if (args.length >= 2) { //При передачи параметров можем установить размер окна
