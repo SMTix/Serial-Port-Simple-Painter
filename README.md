@@ -3,4 +3,4 @@
 
 # Использование
 На вход по COM-порту необходимо подавать значения акселерометра в формате строки: "X:%число Y:%число Z:%число". Пример работы:
-![image text](https:https://github.com/SMTix/Serial-Port-Simple-Painter/blob/main/raw/img1.jpg) 
+![image text](https://github.com/SMTix/Serial-Port-Simple-Painter/blob/main/raw/img1.jpg) 
